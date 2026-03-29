@@ -1,0 +1,24 @@
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: keycloak-auth
+  namespace: app
+spec:
+  jwtRules:
+  - issuer: "http://keycloak:8080/realms/zero-trust"
+    jwksUri: "http://keycloak:8080/realms/zero-trust/protocol/openid-connect/certs"
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt
+  namespace: app
+spec:
+  selector:
+    matchLabels:
+      tier: backend
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        requestPrincipals: ["*"]
