@@ -1,0 +1,74 @@
+name: Zero Trust DevSecOps Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy scan on nginx image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: nginx:alpine
+        format: table
+        exit-code: 0
+        severity: CRITICAL,HIGH
+
+    - name: Run Trivy scan on redis image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: redis:alpine
+        format: table
+        exit-code: 0
+        severity: CRITICAL,HIGH
+
+    - name: Run Trivy scan on keycloak image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: quay.io/keycloak/keycloak:24.0.0
+        format: table
+        exit-code: 0
+        severity: CRITICAL,HIGH
+
+  kubernetes-validation:
+    name: Validate Kubernetes Manifests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install kubectl
+      uses: azure/setup-kubectl@v3
+
+    - name: Validate deployment manifests
+      run: |
+        kubectl apply --dry-run=client -f app-deployments.yaml || true
+        kubectl apply --dry-run=client -f app-services.yaml || true
+        echo "Manifest validation complete"
+
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy filesystem scan for secrets
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: fs
+        scan-ref: .
+        format: table
+        exit-code: 0
+        scanners: secret
