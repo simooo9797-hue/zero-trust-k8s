@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-test-app
+  namespace: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bad-test-app
+  template:
+    metadata:
+      labels:
+        app: bad-test-app
+        tier: test
+    spec:
+      # ❌ Violates: disallow-root-user (no runAsNonRoot: true)
+      securityContext:
+        runAsNonRoot: false
+      containers:
+      - name: bad-test-app
+        image: python:3.6   # ❌ Triggers Trivy (old + CVE-filled image)
+        ports:
+        - containerPort: 8080
+        securityContext:
+          privileged: true              # ❌ Violates: disallow-privileged-containers
+          runAsNonRoot: false           # ❌ Violates: disallow-root-user
+          allowPrivilegeEscalation: true # ❌ Violates: disallow-root-user
+        # ❌ Violates: require-resource-limits (no resources at all)
