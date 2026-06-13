@@ -1,11 +1,9 @@
 name: Zero Trust DevSecOps Pipeline
-
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-
 jobs:
   security-scan:
     name: Security Scan
@@ -14,31 +12,39 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
+ 
     - name: Run Trivy scan on nginx image
       uses: aquasecurity/trivy-action@master
       with:
         image-ref: nginx:alpine
         format: table
-        exit-code: 0
+        exit-code: 1        # ✅ FIXED: was 0, now fails on findings
         severity: CRITICAL,HIGH
-
+ 
     - name: Run Trivy scan on redis image
       uses: aquasecurity/trivy-action@master
       with:
         image-ref: redis:alpine
         format: table
-        exit-code: 0
+        exit-code: 1        # ✅ FIXED: was 0, now fails on findings
         severity: CRITICAL,HIGH
-
+ 
     - name: Run Trivy scan on keycloak image
       uses: aquasecurity/trivy-action@master
       with:
         image-ref: quay.io/keycloak/keycloak:24.0.0
         format: table
-        exit-code: 0
+        exit-code: 1        # ✅ FIXED: was 0, now fails on findings
         severity: CRITICAL,HIGH
-
+ 
+    - name: Run Trivy scan on python image (bad manifest test)
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: python:3.6  # ✅ scans the bad image in test-bad-manifest.yaml
+        format: table
+        exit-code: 1
+        severity: CRITICAL,HIGH
+ 
   kubernetes-validation:
     name: Validate Kubernetes Manifests
     runs-on: ubuntu-latest
@@ -46,16 +52,22 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
+ 
     - name: Install kubectl
       uses: azure/setup-kubectl@v3
-
+ 
     - name: Validate deployment manifests
       run: |
-        kubectl apply --dry-run=client -f app-deployments.yaml || true
-        kubectl apply --dry-run=client -f app-services.yaml || true
+        # ✅ FIXED: removed || true so failures actually stop the pipeline
+        kubectl apply --dry-run=client -f app-deployments.yaml
+        kubectl apply --dry-run=client -f app-services.yaml
+        # validate bad manifest if it exists
+        if [ -f test-bad-manifest.yaml ]; then
+          echo "⚠️ Found test-bad-manifest.yaml — validating..."
+          kubectl apply --dry-run=client -f test-bad-manifest.yaml
+        fi
         echo "Manifest validation complete"
-
+ 
   secret-scan:
     name: Secret Detection
     runs-on: ubuntu-latest
@@ -63,12 +75,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
+ 
     - name: Run Trivy filesystem scan for secrets
       uses: aquasecurity/trivy-action@master
       with:
         scan-type: fs
         scan-ref: .
         format: table
-        exit-code: 0
+        exit-code: 1        # ✅ FIXED: was 0, now fails when secrets found
         scanners: secret
